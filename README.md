@@ -28,12 +28,25 @@ YT-Playlist-Search/            # root folder
 
 ## Installation
 
-1. Clone the repo:
+1. **Get the code**
 
-   ```bash
-   git clone https://github.com/Psi505/YT-Playlist-Search.git
-   ```
-2. In your browser, go to `chrome://extensions/`, enable **Developer mode**, click **Load unpacked**, and select the `YT-Playlist-Search/YT-Playlist-Search` folder.
+   * **Clone with Git** (if you have Git):
+
+     ```bash
+     git clone https://github.com/Psi505/YT-Playlist-Search.git
+     ```
+   * **Or Download ZIP** (no Git needed):
+
+     1. Go to the [YT-Playlist-Search](https://github.com/Psi505/YT-Playlist-Search) repo.
+     2. Click **Code** → **Download ZIP** and extract it.
+
+2. **Load the extension in your browser**
+
+   * Open `chrome://extensions/` (or `edge://extensions/`, `brave://extensions/`).
+   * Enable **Developer mode**.
+   * Click **Load unpacked** and select the `YT-Playlist-Search/YT-Playlist-Search` folder.
 
 That’s it—open YouTube, navigate to any playlist, and enjoy instant search!
+
+> **Tip:** For easier management, you can move the `YT-Playlist-Search` repo folder into a permanent location—such as an `Extensions` folder inside your user profile—so that you don’t accidentally delete or relocate it when you restart or clean up your downloads.
 

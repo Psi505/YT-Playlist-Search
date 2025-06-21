@@ -20,8 +20,8 @@ A fast, lightweight Chromium-based browser extension that adds an in-page search
 YT-Playlist-Search/            # root folder
 └── YT-Playlist-Search/        # extension files
     ├── icons/
-    │   ├── search-48.png
-    │   └── search-128.png
+    │   ├── 48x48.png
+    │   └── 128x128.png
     ├── manifest.json
     └── content_script.js
 ```

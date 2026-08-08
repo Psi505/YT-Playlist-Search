@@ -7,8 +7,8 @@
  *   2. innertube requests go out as the page itself, so they carry the same
  *      auth the site uses for private playlists like Watch Later.
  *
- * Responses are harvested here and only small batches cross the world boundary
- * — the raw JSON never gets structured-cloned.
+ * Responses are harvested here and only small batches cross the world boundary.
+ * The raw JSON never gets structured-cloned.
  */
 (function () {
   'use strict';
@@ -21,8 +21,8 @@
   // continuationCommand → innertubeCommand → continuationCommand). Responses are
   // plain JSON with no cycles, so this only needs to be generous, not tight.
   const MAX_DEPTH = 60;
-  // The header count includes videos the listing omits — deleted, private,
-  // region-blocked — so an index legitimately lands short of it and an exact
+  // The header count includes videos the listing omits (deleted, private,
+  // region-blocked), so an index legitimately lands short of it and an exact
   // match can never be the bar for "complete". A *large* shortfall is a
   // different thing: it means paging was truncated. This separates the two.
   const COMPLETE_RATIO = 0.5;
@@ -204,7 +204,7 @@
       sent = items.length;
     };
 
-    // Page one is already sitting in the document on /playlist — no request.
+    // Page one is already sitting in the document on /playlist, so no request.
     let firstNetworkPage = true;
     const seed = seedData();
     if (seed) {
@@ -215,7 +215,7 @@
       token = findToken(rs, 0);
       if (items.length) flush(false);
       // A seed with no continuation is only believable when it already covers
-      // the whole playlist. Otherwise fall through and page from scratch — the
+      // the whole playlist. Otherwise fall through and page from scratch. The
       // cold browse re-fetches page one, which dedupes to nothing but yields a
       // token we can actually follow.
       if (items.length && !token && total && items.length >= total) {

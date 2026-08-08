@@ -1,4 +1,4 @@
-/* YouTube Playlist Search — extension world.
+/* YouTube Playlist Search: extension world.
  *
  * Search results are rendered into our own virtualized list rather than by
  * hiding rows in YouTube's. YouTube only keeps a few hundred rows in the DOM
@@ -214,7 +214,7 @@
       pending.delete(reqId);
       clearTimeout(guard);
       m.done = true;
-      // Never persist a short index — a cached partial is worse than no cache,
+      // Never persist a short index. A cached partial is worse than no cache,
       // because it looks authoritative for the whole TTL.
       if (!m.error && m.complete) {
         storeSet(key, {
@@ -533,7 +533,7 @@
           // Say what actually happened rather than presenting a short index
           // as the whole playlist.
           t = n.toLocaleString() + ' of ' + (m.total || '?').toLocaleString() +
-            ' indexed — ' + (m.error || 'stopped early');
+            ' indexed (' + (m.error || 'stopped early') + ')';
         } else {
           t = n.toLocaleString() + (n === 1 ? ' video' : ' videos');
           // The gap is deleted/private entries YouTube counts but won't list.
@@ -652,7 +652,7 @@
 
   /* ---------- lifecycle ---------- */
 
-  // Retries only while unmounted, then stops — no permanent timer forcing a
+  // Retries only while unmounted, then stops. No permanent timer forcing a
   // layout on every YouTube page.
   let retryTimer = 0;
   let retriesLeft = 0;

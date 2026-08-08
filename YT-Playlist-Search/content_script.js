@@ -11,12 +11,20 @@
 (function () {
   'use strict';
 
-  const CHANNEL = 'ytpl';
+  const REQ_EVT = 'ytpl-req';
+  const RES_EVT = 'ytpl-res';
   const ROW_H = 84;
   const OVERSCAN = 6;
   const CACHE_TTL = 6 * 60 * 60 * 1000;
   // Bumped to discard indexes written by builds that could persist a partial.
   const CACHE_V = 3;
+  const MAX_INDEXES = 3;
+  const MAX_VIEW_H = 4000;
+  // Rows show the thumbnail at 112x63. What costs memory is the decoded bitmap,
+  // which is width * height * 4 bytes no matter how small the JPEG is: mqdefault
+  // (320x180) is 230KB decoded, default (120x90) is 43KB. Take the smaller one
+  // unless the display actually has the pixels to show the difference.
+  const THUMB = (window.devicePixelRatio || 1) > 1.5 ? 'mqdefault' : 'default';
   const PEEK_TIMEOUT = 2500;
   const INDEX_TIMEOUT = 120000;
 
@@ -116,18 +124,21 @@
   let reqSeq = 0;
   const pending = new Map();
 
-  window.addEventListener('message', ev => {
-    if (ev.source !== window || ev.origin !== location.origin) return;
-    const d = ev.data;
-    if (!d || d.__ytpl !== CHANNEL) return;
-    if (d.type !== 'peek' && d.type !== 'batch') return;
+  // A private CustomEvent channel, not window messages. See page_bridge.js: a
+  // window 'message' listener here has to read ev.data to identify its own
+  // traffic, and that deserializes every message YouTube posts to itself
+  // (~28,000/s), which was the dominant source of memory churn in this
+  // extension. This listener fires only for our own events.
+  document.addEventListener(RES_EVT, ev => {
+    let d;
+    try { d = JSON.parse(ev.detail); } catch (e) { return; }
+    if (!d || (d.type !== 'peek' && d.type !== 'batch')) return;
     const cb = pending.get(d.reqId);
     if (cb) cb(d);
   });
 
   function send(msg) {
-    msg.__ytpl = CHANNEL;
-    window.postMessage(msg, location.origin);
+    document.dispatchEvent(new CustomEvent(REQ_EVT, { detail: JSON.stringify(msg) }));
   }
 
   // Resolves null when the page-world script isn't there at all.
@@ -146,19 +157,35 @@
 
   function getIndex(listId) {
     let m = indexes.get(listId);
-    if (!m) {
-      m = {
-        listId: listId,
-        items: [],
-        ids: new Set(),
-        total: 0,
-        done: false,
-        complete: false,
-        error: '',
-        started: false,
-        listeners: new Set()
-      };
+    if (m) {
+      // Map iterates in insertion order, so re-inserting makes this the most
+      // recently used and leaves the eviction candidate first.
+      indexes.delete(listId);
       indexes.set(listId, m);
+      return m;
+    }
+    m = {
+      listId: listId,
+      items: [],
+      ids: new Set(),
+      total: 0,
+      done: false,
+      complete: false,
+      error: '',
+      cachePromise: null,
+      bridge: false,
+      started: false,
+      listeners: new Set()
+    };
+    indexes.set(listId, m);
+    // Without this, browsing playlists in one tab retains every index visited.
+    // Cached ones reload from storage in milliseconds, so holding them costs
+    // memory for no real benefit.
+    for (const key of indexes.keys()) {
+      if (indexes.size <= MAX_INDEXES) break;
+      const victim = indexes.get(key);
+      if (key === listId || (victim && victim.listeners.size)) continue;
+      indexes.delete(key);
     }
     return m;
   }
@@ -181,34 +208,53 @@
     }
   }
 
-  async function ensureIndex(listId) {
+  // Cheap half: a storage read and a peek at the count already in the page. No
+  // network, no response parsing. Safe to run on every playlist you open.
+  function loadCache(listId) {
     const m = getIndex(listId);
-    if (m.started) return m;
+    // Memoize the promise, not a flag: focusing the box while this is still in
+    // flight must wait for it, or ensureIndex reads m.bridge before it is set
+    // and wrongly concludes the page script is missing.
+    if (m.cachePromise) return m.cachePromise;
+
+    m.cachePromise = (async () => {
+      const [cached, peeked] = await Promise.all([storeGet('idx:' + listId), peek()]);
+      m.bridge = !!peeked;
+      const pageTotal = peeked ? peeked.total : 0;
+      if (pageTotal > m.total) m.total = pageTotal;
+
+      // A stale cache is caught by TTL; an edited playlist is caught by the
+      // count the page itself reports, which costs nothing to read.
+      if (cached && cached.v === CACHE_V && Array.isArray(cached.items) &&
+          Date.now() - cached.at < CACHE_TTL &&
+          (!pageTotal || cached.total === pageTotal)) {
+        addItems(m, cached.items);
+        m.total = cached.total || m.items.length;
+        m.done = true;
+        m.complete = true;
+      }
+      notify(m);
+      return m;
+    })();
+    return m.cachePromise;
+  }
+
+  // Expensive half: ~50 sequential requests, each a multi-megabyte response to
+  // parse. Deferred until the search box is actually used, because most visits
+  // to a playlist never search it and were paying for this anyway.
+  async function ensureIndex(listId) {
+    const m = await loadCache(listId);
+    if (m.done || m.started) return m;
     m.started = true;
 
-    const key = 'idx:' + listId;
-    const [cached, peeked] = await Promise.all([storeGet(key), peek()]);
-    const pageTotal = peeked ? peeked.total : 0;
-
-    // A stale cache is caught by TTL; an edited playlist is caught by the
-    // count the page itself reports, which costs nothing to read.
-    if (cached && cached.v === CACHE_V && Array.isArray(cached.items) &&
-        Date.now() - cached.at < CACHE_TTL &&
-        (!pageTotal || cached.total === pageTotal)) {
-      addItems(m, cached.items);
-      m.total = cached.total || m.items.length;
-      m.done = true;
-      m.complete = true;
-      notify(m);
-      return m;
-    }
-
-    if (!peeked) {
+    if (!m.bridge) {
       m.error = 'page script unavailable';
+      m.done = true;
       notify(m);
       return m;
     }
 
+    const key = 'idx:' + listId;
     const reqId = ++reqSeq;
     const finish = () => {
       pending.delete(reqId);
@@ -426,7 +472,7 @@
         row.id = item.id;
         row.num.textContent = item.pos;
         row.t.textContent = item.title;
-        row.img.src = 'https://i.ytimg.com/vi/' + item.id + '/mqdefault.jpg';
+        row.img.src = 'https://i.ytimg.com/vi/' + item.id + '/' + THUMB + '.jpg';
         row.el.href = '/watch?v=' + encodeURIComponent(item.id) +
           '&list=' + encodeURIComponent(listId) + '&index=' + item.pos;
       }
@@ -443,7 +489,11 @@
       // sidebar needs.
       const panelTop = panel.getBoundingClientRect().top;
       const viewTop = (scroller ? scroller.getBoundingClientRect().top : 0) - panelTop;
-      const viewH = scroller ? scroller.clientHeight : window.innerHeight;
+      // Clamped because the row pool is sized from this. An unconstrained
+      // scrolling ancestor can report its full content height here, which would
+      // build thousands of rows and thumbnails instead of one screenful.
+      const viewH = Math.min(
+        scroller ? scroller.clientHeight : window.innerHeight, MAX_VIEW_H);
       const first = Math.max(0, Math.floor(viewTop / ROW_H) - OVERSCAN);
       const last = Math.max(first, Math.min(
         n, Math.ceil((viewTop + viewH) / ROW_H) + OVERSCAN
@@ -461,8 +511,15 @@
       const need = last - first;
       while (pool.length < need) pool.push(makeRow());
       for (let k = 0; k < pool.length; k++) {
-        if (k < need) fillRow(pool[k], results[first + k], first + k);
-        else if (pool[k].el.style.display !== 'none') pool[k].el.style.display = 'none';
+        if (k < need) {
+          fillRow(pool[k], results[first + k], first + k);
+        } else if (pool[k].el.style.display !== 'none') {
+          pool[k].el.style.display = 'none';
+          // Drop the thumbnail so Chrome can release the decoded bitmap, which
+          // is far larger than the encoded file. Clearing id forces a refill.
+          pool[k].img.removeAttribute('src');
+          pool[k].id = null;
+        }
       }
     }
 
@@ -540,6 +597,10 @@
           // Naming it stops a normal shortfall from reading as a failure.
           if (m.total > n) t += ' (' + (m.total - n).toLocaleString() + ' unavailable)';
         }
+      } else if (!m.started) {
+        // Nothing has been indexed yet by design. The count still comes free
+        // from what the page already reported, so the line is not empty.
+        t = m.total ? m.total.toLocaleString() + ' videos' : '';
       } else if (m.total) {
         t = 'Indexing ' + m.items.length.toLocaleString() + '/' +
           m.total.toLocaleString() + '…';
@@ -552,7 +613,22 @@
       status.style.display = t ? '' : 'none';
     }
 
+    // Focus is the earliest reliable signal of intent to search, so indexing
+    // starts there rather than on the first keystroke: by the time a query is
+    // typed the first pages are usually already in.
+    let indexRequested = false;
+    function beginIndex() {
+      if (indexRequested) return;
+      indexRequested = true;
+      // Widen only for the duration of the run: the DOM fallback matters only
+      // while indexing is actually happening.
+      setWide(true);
+      ensureIndex(listId).then(onIndexUpdate);
+    }
+    input.addEventListener('focus', beginIndex);
+
     input.addEventListener('input', () => {
+      beginIndex();
       query = input.value.trim();
       setActive(!!query);
       recompute();
@@ -593,13 +669,32 @@
       }, 200);
     }
 
+    // The subtree observer exists only to pick up rows YouTube renders *while
+    // we are indexing*, as a fallback for when the API path cannot be reached.
+    // Outside that window it is pure cost: YouTube churns this subtree
+    // constantly, and each batch allocates NodeLists through querySelectorAll
+    // and titleOf whether or not we have any use for them. Measured at ~10MB/s
+    // of garbage on an idle 888-video playlist.
+    //
+    // Narrow means watching the parent's direct children, which still catches
+    // the list being swapped out — the only thing we need when not indexing.
+    let wide = null;
+    function setWide(on) {
+      if (wide === on) return;
+      wide = on;
+      mo.disconnect();
+      if (on) mo.observe(list, { childList: true, subtree: true });
+      else if (list.parentNode) mo.observe(list.parentNode, { childList: true });
+    }
+
     const mo = new MutationObserver(muts => {
       if (!list.isConnected || !input.isConnected) {
         instance.destroy();
         scheduleMount();
         return;
       }
-      if (getIndex(listId).done) return;
+      if (!wide) return;
+      if (getIndex(listId).done) { setWide(false); return; }
       let added = false;
       for (const mut of muts) {
         for (const node of mut.addedNodes) {
@@ -615,7 +710,7 @@
       }
       if (added) scheduleRefresh();
     });
-    mo.observe(list, { childList: true, subtree: true });
+    setWide(false);
 
     // Seed from what's already on screen.
     for (const el of list.querySelectorAll(ITEM_SELECTORS)) harvestEl(el);
@@ -623,6 +718,9 @@
 
     const onIndexUpdate = () => {
       if (ui !== instance) return;
+      // Indexing can finish without any further DOM mutation, so the observer
+      // has to be narrowed here too rather than only from its own callback.
+      if (getIndex(listId).done) setWide(false);
       recompute();
     };
 
@@ -645,7 +743,7 @@
     ui = instance;
 
     getIndex(listId).listeners.add(onIndexUpdate);
-    ensureIndex(listId).then(onIndexUpdate);
+    loadCache(listId).then(onIndexUpdate);
     updateStatus();
     return true;
   }

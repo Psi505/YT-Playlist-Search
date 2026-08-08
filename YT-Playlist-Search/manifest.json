@@ -1,13 +1,23 @@
 {
   "manifest_version": 3,
   "name": "YouTube Playlist Search",
-  "version": "1.0",
+  "version": "2.0",
   "description": "Adds a search box to filter videos in any YouTube playlist (including Watch Later), no API key needed.",
+  "permissions": ["storage"],
   "content_scripts": [
     {
       "matches": [
         "*://www.youtube.com/playlist*",
-        "*://www.youtube.com/watch*list*"
+        "*://www.youtube.com/watch*"
+      ],
+      "js": ["page_bridge.js"],
+      "world": "MAIN",
+      "run_at": "document_start"
+    },
+    {
+      "matches": [
+        "*://www.youtube.com/playlist*",
+        "*://www.youtube.com/watch*"
       ],
       "js": ["content_script.js"],
       "run_at": "document_idle"

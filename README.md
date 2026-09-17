@@ -5,36 +5,23 @@
 
 # YouTube Playlist Search Extension
 
-A fast, lightweight Chromium-based browser extension that adds an in-page search bar to YouTube playlists.
+A lightweight Chromium extension that adds a search bar to any YouTube playlist.
 
 ## Features
 
-* Search any playlist (including Watch Later) by title, with results appearing as you type
-* Indexes the **whole** playlist, not just the part you've scrolled to, so every match is reachable
-* Results render into their own virtualized list: only a screenful of rows exists at a time, so a 20,000-video playlist costs the same as a 20-video one
-* Multi-word search is order-independent (`piano concerto` matches *Concerto for Piano*), and accents are ignored (`bela` matches *Béla*)
-* First page of results comes straight out of the page's own data, so there is no request and no waiting
-* Index is cached for 6 hours and re-checked against the playlist's current video count, so an edited playlist refreshes itself
-* No API keys. The only permission is `storage`, which Chromium grants without an install warning
-* Compatible with Chrome, Edge, Brave, and other Chromium browsers
+* Search any playlist, including Watch Later, by title
+* Indexes the whole playlist, so every match is reachable, not just the part you scrolled to
+* Results show in a virtualized list, so huge playlists cost the same as small ones
+* Word order and accents do not matter (`piano concerto` matches *Concerto for Piano*)
+* Index is cached for 6 hours
+* No API keys. The only permission is `storage`
+* Works in Chrome, Edge, Brave, and other Chromium browsers
 
 ## How it works
 
-Indexing runs in the page's own JavaScript world, which buys two things: `ytcfg`
-and `ytInitialData` can be read as live objects rather than scraped out of a
-serialized copy of the document, and requests to YouTube's internal `browse`
-endpoint go out as the page itself, which is what lets private playlists like
-Watch Later index without a scroll-through.
+Indexing runs in the page's own JavaScript world. That lets it read YouTube's live config data and send requests as the page itself, which is what allows private playlists like Watch Later to index fully.
 
-Search deliberately does *not* filter YouTube's own list. YouTube keeps only a
-few hundred rows in the DOM at a time, so hiding non-matching rows can never
-reveal a match you haven't scrolled to. Drawing our own list from the index
-removes that ceiling.
-
-Cold-indexing a large playlist is bounded by YouTube: continuation tokens are
-strictly sequential at 100 videos per request, so ~5,000 videos means ~50 round
-trips. Results stream in and are searchable throughout, and the index is cached
-afterwards.
+Search does not hide rows in YouTube's list. YouTube only keeps a few hundred rows on the page at a time, so that approach can never reach matches you have not scrolled to. Instead, matches are drawn from the full index into their own list.
 
 ## Repository Structure
 
@@ -69,7 +56,6 @@ YT-Playlist-Search/            # root folder
    * Enable **Developer mode**.
    * Click **Load unpacked** and select the `YT-Playlist-Search/YT-Playlist-Search` folder.
 
-That’s it. Open YouTube, navigate to any playlist, and enjoy instant search!
+That's it. Open YouTube, navigate to any playlist, and enjoy instant search!
 
-> **Tip:** For easier management, you can move the `YT-Playlist-Search` repo folder into a permanent location, such as an `Extensions` folder inside your user profile, so that you don’t accidentally delete or relocate it when you restart or clean up your downloads.
-
+> **Tip:** Move the repo folder to a permanent location, such as an `Extensions` folder in your user profile, so you don't lose it when cleaning up your downloads.

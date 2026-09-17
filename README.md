@@ -17,6 +17,14 @@ A lightweight Chromium extension that adds a search bar to any YouTube playlist.
 * No API keys. The only permission is `storage`
 * Works in Chrome, Edge, Brave, and other Chromium browsers
 
+## Demo
+
+Searching Simplilearn's 358-video Cyber Security playlist for `ethical hacking`.
+The whole playlist is indexed up front, so matches show with their original
+position (13, 32, 49, 72) even though the page had only rendered 100 rows.
+
+![Searching a 358-video playlist for "ethical hacking" in dark mode](screenshots/demo-search.png)
+
 ## How it works
 
 Indexing runs in the page's own JavaScript world. That lets it read YouTube's live config data and send requests as the page itself, which is what allows private playlists like Watch Later to index fully.

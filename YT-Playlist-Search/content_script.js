@@ -48,35 +48,45 @@
   /* ---------- styles ---------- */
 
   const style = document.createElement('style');
+  // YouTube no longer defines --yt-spec-* custom properties (verified: unset on
+  // current pages), so colors are spelled out for the light theme and switched
+  // under html[dark], the attribute YouTube sets in dark mode.
   style.textContent = [
     '#ytpl-search.ytpl-inline{width:350px;height:35px;margin:0 14px 0 22px;border-radius:16px;',
     'font-size:15px;align-self:center}',
     '#ytpl-search.ytpl-block{display:block;width:340px;height:34px;margin:8px 16px 10px 8px;',
     'border-radius:8px;font-size:14px}',
     '#ytpl-search{padding:0 12px;box-sizing:border-box;outline:none;',
-    'font-family:Roboto,Arial,sans-serif;color:var(--yt-spec-text-primary,#fff);',
-    'background:var(--yt-spec-badge-chip-background,#181818);',
-    'border:1px solid var(--yt-spec-10-percent-layer,#383838)}',
-    '#ytpl-search:focus{border-color:var(--yt-spec-text-secondary,#909090)}',
-    '#ytpl-status{color:var(--yt-spec-text-secondary,#aaa);font-size:13px;',
+    'font-family:Roboto,Arial,sans-serif;color:#0f0f0f;',
+    'background:#f2f2f2;border:1px solid #d9d9d9}',
+    'html[dark] #ytpl-search{color:#f1f1f1;background:#181818;border-color:#383838}',
+    '#ytpl-search:focus{border-color:#909090}',
+    '#ytpl-status{color:#606060;font-size:13px;',
     'font-family:Roboto,Arial,sans-serif}',
+    'html[dark] #ytpl-status{color:#aaaaaa}',
     '#ytpl-status.ytpl-inline{margin-left:2px;align-self:center;white-space:nowrap}',
     '#ytpl-status.ytpl-block{display:block;margin:0 16px 10px 10px}',
     '#ytpl-panel{position:relative;width:100%;contain:layout paint}',
     '#ytpl-sizer{position:relative;width:100%}',
     '.ytpl-row{position:absolute;top:0;left:0;right:0;height:' + ROW_H + 'px;display:flex;',
     'align-items:center;gap:12px;padding:0 8px;box-sizing:border-box;text-decoration:none;',
-    'border-radius:10px;color:inherit;contain:layout paint}',
-    '.ytpl-row:hover{background:var(--yt-spec-badge-chip-background,#272727)}',
+    'border-radius:10px;color:#0f0f0f;contain:layout paint}',
+    'html[dark] .ytpl-row{color:#f1f1f1}',
+    '.ytpl-row:hover{background:rgba(0,0,0,0.05)}',
+    'html[dark] .ytpl-row:hover{background:#272727}',
     '.ytpl-num{flex:0 0 34px;text-align:right;font-size:12px;',
-    'color:var(--yt-spec-text-secondary,#aaa);font-family:Roboto,Arial,sans-serif}',
+    'color:#606060;font-family:Roboto,Arial,sans-serif}',
+    'html[dark] .ytpl-num{color:#aaaaaa}',
     '.ytpl-thumb{flex:0 0 auto;width:112px;height:63px;object-fit:cover;border-radius:8px;',
-    'background:var(--yt-spec-10-percent-layer,#282828)}',
+    'background:#e5e5e5}',
+    'html[dark] .ytpl-thumb{background:#282828}',
     '.ytpl-title{font-size:14px;line-height:1.4;font-family:Roboto,Arial,sans-serif;',
-    'color:var(--yt-spec-text-primary,#fff);display:-webkit-box;-webkit-line-clamp:2;',
+    'color:#0f0f0f;display:-webkit-box;-webkit-line-clamp:2;',
     '-webkit-box-orient:vertical;overflow:hidden}',
+    'html[dark] .ytpl-title{color:#f1f1f1}',
     '#ytpl-empty{padding:24px 8px;font-size:14px;font-family:Roboto,Arial,sans-serif;',
-    'color:var(--yt-spec-text-secondary,#aaa)}'
+    'color:#606060}',
+    'html[dark] #ytpl-empty{color:#aaaaaa}'
   ].join('');
   (document.head || document.documentElement).appendChild(style);
 

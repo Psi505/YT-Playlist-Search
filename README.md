@@ -19,11 +19,11 @@ A lightweight Chromium extension that adds a search bar to any YouTube playlist.
 
 ## Demo
 
-Searching Simplilearn's 358-video Cyber Security playlist for `ethical hacking`.
-The whole playlist is indexed up front, so matches show with their original
-position (13, 32, 49, 72) even though the page had only rendered 100 rows.
+Searching 13Cubed's 119-video Digital Forensics playlist for `memory`. The whole
+playlist is indexed up front, so matches show with their original position
+(2, 9, 11, 17, ...) even though the page had only rendered 100 rows.
 
-![Searching a 358-video playlist for "ethical hacking" in dark mode](screenshots/demo-search.png)
+![Searching a 119-video playlist for "memory" in dark mode](screenshots/demo-search.png)
 
 ## How it works
 

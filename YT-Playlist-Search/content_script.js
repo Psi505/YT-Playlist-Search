@@ -26,7 +26,7 @@
   // unless the display actually has the pixels to show the difference.
   const THUMB = (window.devicePixelRatio || 1) > 1.5 ? 'mqdefault' : 'default';
   const PEEK_TIMEOUT = 2500;
-  const INDEX_TIMEOUT = 120000;
+  const INDEX_TIMEOUT = 480000;
 
   const ITEM_SELECTORS = [
     'yt-lockup-view-model',
@@ -185,6 +185,11 @@
       cachePromise: null,
       bridge: false,
       started: false,
+      dbg: '',
+      resumeToken: '',
+      resumeChain: '',
+      nextToken: '',
+      nextChain: '',
       listeners: new Set()
     };
     indexes.set(listId, m);
@@ -234,14 +239,21 @@
       if (pageTotal > m.total) m.total = pageTotal;
 
       // A stale cache is caught by TTL; an edited playlist is caught by the
-      // count the page itself reports, which costs nothing to read.
+      // count the page itself reports, which costs nothing to read. A partial
+      // cache (nextToken set, done false) is not an authority on the whole
+      // playlist: it is resume fuel for the next indexing attempt.
       if (cached && cached.v === CACHE_V && Array.isArray(cached.items) &&
           Date.now() - cached.at < CACHE_TTL &&
           (!pageTotal || cached.total === pageTotal)) {
         addItems(m, cached.items);
         m.total = cached.total || m.items.length;
-        m.done = true;
-        m.complete = true;
+        if (cached.done) {
+          m.done = true;
+          m.complete = true;
+        } else if (cached.nextToken) {
+          m.resumeToken = cached.nextToken;
+          m.resumeChain = cached.chain || 'browse';
+        }
       }
       notify(m);
       return m;
@@ -270,14 +282,25 @@
       pending.delete(reqId);
       clearTimeout(guard);
       m.done = true;
-      // Never persist a short index. A cached partial is worse than no cache,
-      // because it looks authoritative for the whole TTL.
-      if (!m.error && m.complete) {
+      if (m.complete) {
         storeSet(key, {
           v: CACHE_V,
           at: Date.now(),
           total: m.total || m.items.length,
-          items: m.items.map(i => [i.id, i.title])
+          items: m.items.map(i => [i.id, i.title]),
+          nextToken: ''
+        });
+      } else if (m.items.length > 0 && m.nextToken) {
+        // Partial progress: keep the titles plus the point where the chain
+        // stopped, so the next attempt continues it instead of re-burning
+        // the same requests. It is never presented as the whole playlist.
+        storeSet(key, {
+          v: CACHE_V,
+          at: Date.now(),
+          total: m.total || m.items.length,
+          items: m.items.map(i => [i.id, i.title]),
+          nextToken: m.nextToken,
+          chain: m.nextChain || 'browse'
         });
       }
       notify(m);
@@ -290,10 +313,20 @@
       if (d.items && d.items.length) addItems(m, d.items);
       if (d.total > m.total) m.total = d.total;
       if (d.error) m.error = d.error;
+      if (d.dbg) m.dbg = d.dbg;
+      if (d.nextToken) { m.nextToken = d.nextToken; m.nextChain = d.chain || 'browse'; }
       if (d.done) { m.complete = !!d.complete; finish(); }
       else notify(m);
     });
-    send({ type: 'index', reqId: reqId, listId: listId });
+    send({
+      type: 'index',
+      reqId: reqId,
+      listId: listId,
+      resumeToken: m.resumeToken,
+      resumeChain: m.resumeChain || '',
+      base: m.items.length,
+      total: m.total
+    });
     return m;
   }
 
@@ -604,8 +637,11 @@
         } else {
           t = n.toLocaleString() + (n === 1 ? ' video' : ' videos');
           // The gap is deleted/private entries YouTube counts but won't list.
-          // Naming it stops a normal shortfall from reading as a failure.
-          if (m.total > n) t += ' (' + (m.total - n).toLocaleString() + ' unavailable)';
+          // Attributing it to YouTube stops a normal shortfall from reading
+          // as this extension having missed something.
+          if (m.total > n) {
+            t += ' (' + (m.total - n).toLocaleString() + ' hidden by YouTube)';
+          }
         }
       } else if (!m.started) {
         // Nothing has been indexed yet by design. The count still comes free
@@ -620,6 +656,9 @@
           : 'Indexing…';
       }
       status.textContent = t;
+      // Hovering the status line exposes the indexer's per-page trace, which is
+      // how a truncated playlist gets diagnosed without opening devtools.
+      status.title = m.dbg || '';
       status.style.display = t ? '' : 'none';
     }
 
